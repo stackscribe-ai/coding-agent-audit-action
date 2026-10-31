@@ -1,0 +1,47 @@
+name: Self-test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  detects-findings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run agent-audit on examples/risky-project (expect findings)
+        id: audit
+        uses: ./
+        continue-on-error: true
+        with:
+          path: examples/risky-project
+      - name: Assert the action actually failed and reported findings
+        run: |
+          if [ "${{ steps.audit.outcome }}" != "failure" ]; then
+            echo "expected the audit step to fail on a config with known risky patterns"
+            exit 1
+          fi
+          if [ "${{ steps.audit.outputs.findings-count }}" -lt 1 ]; then
+            echo "expected at least 1 reported finding"
+            exit 1
+          fi
+          echo "ok: ${{ steps.audit.outputs.findings-count }} finding(s) reported, step failed as expected"
+
+  passes-clean-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run agent-audit on examples/clean-project (expect clean)
+        uses: ./
+        with:
+          path: examples/clean-project
+
+  non-blocking-mode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run with fail-on-findings=false (should stay green despite findings)
+        uses: ./
+        with:
+          path: examples/risky-project
+          fail-on-findings: "false"

@@ -1,0 +1,73 @@
+name: "AI Agent Config Security Scan"
+description: "Scan a repo's Claude Code / MCP config (.claude/settings.json, .mcp.json) for risky hooks, overly broad permissions, and unpinned MCP server packages, using coding-agent-audit."
+author: "StackScribe AI"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Project directory to scan for .claude/ and .mcp.json config, relative to the repo root."
+    required: false
+    default: "."
+  fail-on-findings:
+    description: "If 'true', the action (and the workflow step) fails when any finding is reported. Set to 'false' to only annotate and keep the build green."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python version used to run the scanner."
+    required: false
+    default: "3.x"
+
+outputs:
+  findings-count:
+    description: "Number of findings coding-agent-audit reported."
+    value: ${{ steps.run-audit.outputs.findings-count }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install coding-agent-audit
+      shell: bash
+      run: pip install --quiet coding-agent-audit
+
+    - name: Run agent-audit (config scan only - IOC checks target a persisted local machine, not an ephemeral CI runner)
+      id: run-audit
+      shell: bash
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+      run: |
+        set +e
+        OUTPUT="$(agent-audit --skip-ioc --project "$SCAN_PATH")"
+        EXIT_CODE=$?
+        set -e
+
+        echo "$OUTPUT"
+
+        COUNT="$(printf '%s\n' "$OUTPUT" | grep -ocE '^\[(CRITICAL|WARNING|INFO)\]')"
+        echo "findings-count=$COUNT" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### coding-agent-audit config scan results"
+          echo
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "No risky Claude Code / MCP config patterns found in \`$SCAN_PATH\`."
+          else
+            echo "Found **$COUNT** finding(s) in \`$SCAN_PATH\`:"
+            echo
+            echo '```'
+            printf '%s\n' "$OUTPUT"
+            echo '```'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if [ "$EXIT_CODE" -ne 0 ] && [ "$FAIL_ON_FINDINGS" = "true" ]; then
+          exit "$EXIT_CODE"
+        fi
+        exit 0

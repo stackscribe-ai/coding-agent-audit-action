@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": ["Bash(git status)", "Bash(git diff)"]
+  },
+  "mcpServers": {
+    "example": {
+      "command": "npx",
+      "args": ["some-mcp-server@1.4.2"]
+    }
+  }
+}
