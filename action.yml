@@ -50,7 +50,7 @@ runs:
 
         echo "$OUTPUT"
 
-        COUNT="$(printf '%s\n' "$OUTPUT" | grep -ocE '^\[(CRITICAL|WARNING|INFO)\]')"
+        COUNT="$(printf '%s\n' "$OUTPUT" | grep -ocE '^\[(CRITICAL|WARNING|INFO)\]' || echo 0)"
         echo "findings-count=$COUNT" >> "$GITHUB_OUTPUT"
 
         {
